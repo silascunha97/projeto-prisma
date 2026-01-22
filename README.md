@@ -70,29 +70,239 @@ $ mau deploy
 
 With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
 
-## Resources
+# 📚 Biblioteca API — NestJS + Prisma
 
-Check out a few resources that may come in handy when working with NestJS:
+API REST para gerenciamento de biblioteca com **empréstimos**, **controle de acesso por papel (RBAC)** e **modelagem orientada a domínio**, construída com **NestJS**, **Prisma** e **PostgreSQL**.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+---
 
-## Support
+## 🎯 Objetivo
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Fornecer uma API robusta para:
 
-## Stay in touch
+- Cadastro e consulta de livros
+- Cadastro e gestão de usuários
+- Controle de empréstimos e devoluções
+- Auditoria de ações realizadas por bibliotecários
+- Autenticação JWT e autorização baseada em papéis
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+A regra central do domínio é **simples e inegociável**:
 
-## License
+> ❗ Um empréstimo **só pode ser realizado por um usuário com papel de BIBLIOTECÁRIO**.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+---
+
+## 🧠 Conceitos Arquiteturais
+
+Esta aplicação segue princípios sólidos de engenharia de software:
+
+- **RESTful API**
+- **Arquitetura em Camadas**
+- **Domain-Driven Design (DDD simplificado)**
+- **Programação Orientada a Objetos (OOP)**
+- **ORM (Object-Relational Mapping)** com Prisma
+- **RBAC (Role-Based Access Control)**
+
+### Camadas
+
+```
+src/
+├── auth/            # Autenticação e JWT
+├── users/           # Usuários e perfis
+├── livros/          # Catálogo de livros
+├── emprestimos/     # Regras de empréstimo
+├── prisma/          # PrismaService e schema
+└── common/          # Guards, decorators, roles
+```
+
+---
+
+## 🗂️ Modelo de Domínio
+
+### Entidades Principais
+
+- **Usuario**
+- **Perfil** (Role)
+- **Livro**
+- **Emprestimo**
+
+### Relacionamentos (UML)
+
+- Um **Usuário** pode ter vários **Empréstimos**
+- Um **Livro** pode participar de vários **Empréstimos** (ao longo do tempo)
+- Um **Empréstimo** referencia:
+  - o **Usuário Leitor**
+  - o **Livro**
+  - o **Usuário Bibliotecário** que autorizou a ação
+
+---
+
+## 🧩 Regras de Negócio Essenciais
+
+### Empréstimo
+
+- Só pode ser criado se:
+  - Livro estiver disponível
+  - Usuário estiver ativo
+  - Usuário autenticado possuir `ROLE_BIBLIOTECARIO`
+
+- O empréstimo **não é deletado**
+- A devolução altera o estado do empréstimo
+
+### Devolução
+
+- Atualiza a data de devolução real
+- Pode calcular multa (caso exista atraso)
+
+---
+
+## 🔐 Autenticação e Autorização
+
+### Autenticação
+
+- JWT Bearer Token
+- Login via email e senha
+
+### Autorização (RBAC)
+
+Papéis suportados:
+
+- `ROLE_LEITOR`
+- `ROLE_BIBLIOTECARIO`
+- `ROLE_ADMIN` (opcional)
+
+Proteção em **duas camadas**:
+
+1. **Guards de rota (NestJS)**
+2. **Validação explícita no Service Layer**
+
+> Mesmo que um endpoint seja exposto incorretamente, a regra de negócio ainda bloqueia a operação.
+
+---
+
+## 🔑 Exemplo de Fluxo de Empréstimo
+
+1. Bibliotecário autentica-se
+2. Token JWT é enviado na requisição
+3. Controller valida token
+4. Service verifica:
+   - Role do usuário
+   - Disponibilidade do livro
+   - Estado do leitor
+5. Empréstimo é criado
+6. Livro é marcado como indisponível
+7. ID do bibliotecário é salvo para auditoria
+
+---
+
+## 🗃️ Prisma — Modelo de Dados (Exemplo)
+
+```prisma
+model Livro {
+  id                  Int    @id @default(autoincrement())
+  titulo              String
+  autor               String
+  genero              String
+  totalCopias         Int
+  copiasDisponiveis   Int
+
+  emprestimos Emprestimo[]
+}
+model Emprestimo {
+  id              Int      @id @default(autoincrement())
+  dataEmprestimo  DateTime
+  dataDevolucao   DateTime?
+
+  livroId         Int
+  livro           Livro @relation(fields: [livroId], references: [id])
+
+  usuarioId       Int
+  usuario         Usuario @relation("UsuarioEmprestimo", fields: [usuarioId], references: [id])
+
+  bibliotecarioId Int
+  bibliotecario   Usuario @relation("BibliotecarioEmprestimo", fields: [bibliotecarioId], references: [id])
+}
+model Perfil {
+  id        Int      @id @default(autoincrement())
+  nome      String   @unique
+  usuarios  Usuario[]
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  email     String   @unique
+  ativo     Boolean  @default(true)
+
+  perfilId  Int
+  perfil    Perfil @relation(fields: [perfilId], references: [id])
+
+  // Empréstimos em que o usuário é o LEITOR (aluno/docente)
+  emprestimosComoUsuario Emprestimo[] @relation("UsuarioEmprestimo")
+
+  // Empréstimos em que o usuário é o BIBLIOTECÁRIO
+  emprestimosComoBibliotecario Emprestimo[] @relation("BibliotecarioEmprestimo")
+}
+
+
+```
+
+---
+
+## 📡 Endpoints Principais
+
+### Autenticação
+
+| Método | Rota | Descrição |
+|------|------|-----------|
+| POST | /auth/login | Login e geração de JWT |
+
+### Livros
+
+| Método | Rota | Permissão |
+|------|------|-----------|
+| GET | /livros | Público |
+| POST | /livros | Bibliotecário |
+
+### Empréstimos
+
+| Método | Rota | Permissão |
+|------|------|-----------|
+| POST | /emprestimos | Bibliotecário |
+| PUT | /emprestimos/:id/devolver | Bibliotecário |
+
+---
+
+## 🧪 Testabilidade
+
+- Services testáveis com mocks de repositório
+- Regras de negócio isoladas do framework
+- Prisma desacoplado da lógica de domínio
+
+---
+
+## 🚀 Tecnologias
+
+- **Node.js**
+- **NestJS**
+- **Prisma ORM**
+- **PostgreSQL**
+- **JWT**
+- **Docker** (opcional)
+
+---
+
+## 📌 Conclusão
+
+Este projeto não é apenas uma API CRUD.
+
+Ele demonstra:
+
+- Disciplina arquitetural
+- Separação clara de responsabilidades
+- Segurança aplicada como regra de negócio
+- Domínio rico e expressivo
+
+Se você quebrar uma camada, o sistema continua íntegro.
+
+Esse é o objetivo.
