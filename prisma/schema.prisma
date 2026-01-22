@@ -12,3 +12,5 @@ model Perfil {
   id   Int    @id @default(autoincrement())
   nome String @unique
 }
+
+
