@@ -1,22 +1,23 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ForbiddenException } from '@nestjs/common';
+import { EmprestimosService } from './emprestimos/emprestimos.service';
+import { Role } from './common/roles.enum';
 
-describe('AppController', () => {
-  let appController: AppController;
+describe('EmprestimosService', () => {
+  const service = new EmprestimosService();
 
-  beforeEach(async () => {
-    const app: TestingModule = await Test.createTestingModule({
-      controllers: [AppController],
-      providers: [AppService],
-    }).compile();
+  it('permite empréstimo para bibliotecário', () => {
+    const result = service.criarEmprestimo(
+      { id: 1, role: Role.BIBLIOTECARIO },
+      10,
+      20,
+    );
 
-    appController = app.get<AppController>(AppController);
+    expect(result.status).toBe('EMPRESTADO');
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
-    });
+  it('bloqueia empréstimo para leitor (validação de service layer)', () => {
+    expect(() =>
+      service.criarEmprestimo({ id: 2, role: Role.LEITOR }, 10, 20),
+    ).toThrow(ForbiddenException);
   });
 });
