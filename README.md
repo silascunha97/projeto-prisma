@@ -31,6 +31,29 @@
 $ yarn install
 ```
 
+## Banco de dados (PostgreSQL no Docker) + Prisma
+
+1. Copie as variáveis de ambiente:
+
+```bash
+cp .env.example .env
+```
+
+2. Suba o PostgreSQL no Docker:
+
+```bash
+docker compose up -d postgres
+```
+
+3. Gere o Prisma Client e aplique as migrations:
+
+```bash
+npx prisma generate
+npx prisma migrate deploy
+```
+
+> O projeto está configurado para usar `@prisma/adapter-pg` com `pg` no `PrismaService`, conectando via `DATABASE_URL`.
+
 ## Compile and run the project
 
 ```bash
