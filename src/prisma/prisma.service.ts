@@ -1,17 +1,41 @@
-import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client/scripts/default-index.js';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
+import { Pool } from 'pg';
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
 {
+  private readonly pool: Pool;
+
+  constructor() {
+    const connectionString = process.env.DATABASE_URL;
+
+    if (!connectionString) {
+      throw new Error(
+        'DATABASE_URL não foi definida. Configure o .env antes de iniciar a aplicação.',
+      );
+    }
+
+    const pool = new Pool({ connectionString });
+    const adapter = new PrismaPg(pool);
+
+    super({
+      adapter,
+      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    });
+
+    this.pool = pool;
+  }
+
   async onModuleInit() {
     await this.$connect();
   }
 
-    async enableShutdownHooks(app: INestApplication) {
-    this.$on('beforeExit', async () => {
-      await app.close();
-    });
+  async onModuleDestroy() {
+    await this.$disconnect();
+    await this.pool.end();
   }
-
 }
